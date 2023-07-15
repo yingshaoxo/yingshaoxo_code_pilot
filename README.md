@@ -3,7 +3,7 @@ It is an offline 'AI' code completion tool made for vim.
 
 ## Install
 ```bash
-curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/main/install.sh | bash
 ```
 
 ## Usage
