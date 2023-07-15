@@ -7,3 +7,4 @@ curl -sSL https://bootstrap.pypa.io/get-pip.py | python3
 
 #pip install auto_everything -y
 pip install "git+https://github.com/yingshaoxo/auto_everything.git@dev"
+pip3 install "git+https://github.com/yingshaoxo/auto_everything.git@dev"
