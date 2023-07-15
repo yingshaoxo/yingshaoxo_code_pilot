@@ -12,3 +12,8 @@ Then hit `Shift + Tab`
 
 ## Usage
 Just open another file, in the line you want to complete, hit `Shift + Tab` again.
+
+## Uninstall
+```bash
+rm -fr ~/.vim/pack/yingshaoxo_code_pilot
+```
