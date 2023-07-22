@@ -29,7 +29,10 @@ def complete_the_rest():
     previous_text = previous_text.split(seperator)[-1].strip()
     #print(previous_text)
 
-    found = Yingshaoxo_Text_Generator.next_code_generation(data_source_folder_path="~", input_text=previous_text, type_limiter=["."+current_file_type, ".md", ".py", ".txt", ".js", ".ts", ".c", ".cpp", ".cc", ".rs", ".go", ".java", ".kt", ".sh", ".dart", ".css", ".less"], how_long_the_text_you_want_to_get=8192)
+    #type_list = ["."+current_file_type, ".md", ".py", ".txt", ".js", ".ts", ".c", ".cpp", ".cc", ".rs", ".go", ".java", ".kt", ".sh", ".dart", ".css", ".less"]
+    type_list = ["."+current_file_type, ".py", ".js", ".ts", ".sh", ".css", ".less"]
+
+    found = Yingshaoxo_Text_Generator.next_code_generation(data_source_folder_path="~", input_text=previous_text, type_limiter=type_list, how_long_the_text_you_want_to_get=512)
 
     found = found.split(seperator)[0]
     #print(found)
