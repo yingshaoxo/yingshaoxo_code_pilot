@@ -53,5 +53,5 @@ endfunction
 nnoremap <S-Tab> <Esc>:call Complete_the_rest()<CR>
 inoremap <S-Tab> <Esc>:call Complete_the_rest()<CR>
 
-nnoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
-inoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
+"nnoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
+"inoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
