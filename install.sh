@@ -26,9 +26,13 @@ mkdir -p ~/.vim/pack
 cd ~/.vim/pack
 git clone https://github.com/yingshaoxo/yingshaoxo_code_pilot.git
 
-curl -sSL https://bootstrap.pypa.io/get-pip.py | $the_real_py_command
 
 
+if $the_real_py_command -m pip >/dev/null; then
+    echo "pip is installed."
+else
+    curl -sSL https://bootstrap.pypa.io/get-pip.py | $the_real_py_command
+fi
 
 if $the_real_py_command -m pip show auto_everything > /dev/null; then
     echo "python package auto_everything installed."
