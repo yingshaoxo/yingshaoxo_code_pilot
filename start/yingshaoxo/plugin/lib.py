@@ -25,6 +25,12 @@ data_source_text = ""
 for file in files:
     data_source_text += io_.read(file) + "\n\n\n\n"
 
+
+yingshaoxo_tokenizer = None
+yingshaoxo_model = None
+yingshaoxo_device = None
+
+
 def complete_the_rest():
     print("I'm in working, please wait...")
 
@@ -49,3 +55,48 @@ def complete_the_rest():
 
     print("Done.")
 
+
+def complete_with_codet5():
+    global yingshaoxo_model, yingshaoxo_tokenizer, yingshaoxo_device
+    try:
+        print("I'm in working, please wait...")
+
+        if (yingshaoxo_model == None or yingshaoxo_tokenizer == None or yingshaoxo_device == None):
+            import os
+            os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+            import tensorflow as tf
+            tf.get_logger().setLevel('ERROR')
+
+            from transformers import T5ForConditionalGeneration, AutoTokenizer, logging
+            logging.set_verbosity(logging.ERROR)
+
+            checkpoint = "Salesforce/codet5p-220m-py"
+            yingshaoxo_device = "cuda"
+
+            yingshaoxo_tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+            yingshaoxo_model = T5ForConditionalGeneration.from_pretrained(checkpoint).to(yingshaoxo_device)
+
+        lines = vim.current.buffer[:]
+
+        current_line_index = int(vim.eval('line(".")')) - 1
+        current_line = lines[current_line_index]
+        #print(current_line_index)
+
+        previous_text = "\n".join(lines[: current_line_index+1])
+        previous_text = previous_text.split("\n\n")[-1].strip()
+        #print(previous_text)
+
+        inputs = yingshaoxo_tokenizer.encode(previous_text, return_tensors="pt").to(yingshaoxo_device)
+        outputs = yingshaoxo_model.generate(inputs, max_length=512)
+        found = yingshaoxo_tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+        #found = found.split(seperator)[0]
+        #print(found)
+        splits = found.split("\n")
+        vim.current.line += splits[0]
+        for index, line in enumerate(splits[1:]):
+            vim.current.buffer.append(line, current_line_index+index+1)
+
+        print("Done.")
+    except Exception as e:
+        print(e)

@@ -23,8 +23,14 @@ EOF
 "startinsert
 endfunction
 
-nnoremap <S-Tab> <Esc>:call Complete_the_rest()<CR>
-inoremap <S-Tab> <Esc>:call Complete_the_rest()<CR>
+function! Complete_with_codet5()
+py3 << EOF
+lib.complete_with_codet5()
+EOF
+endfunction
 
-"nnoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
-"inoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
+nnoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
+inoremap <C-S-P> <Esc>:call Complete_the_rest()<CR>
+
+nnoremap <S-Tab> <Esc>:call Complete_with_codet5()<CR>
+inoremap <S-Tab> <Esc>:call Complete_with_codet5()<CR>
