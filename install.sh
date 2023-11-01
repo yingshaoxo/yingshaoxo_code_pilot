@@ -28,17 +28,17 @@ git clone https://github.com/yingshaoxo/yingshaoxo_code_pilot.git
 
 
 
-if $the_real_py_command -m pip >/dev/null; then
-    echo "pip is installed."
-else
-    curl -sSL https://bootstrap.pypa.io/get-pip.py | $the_real_py_command
-fi
-
-if $the_real_py_command -m pip show auto_everything > /dev/null; then
-    echo "python package auto_everything installed."
-else
-    $the_real_py_command -m pip install "git+https://github.com/yingshaoxo/auto_everything.git@dev"
-fi
+#if $the_real_py_command -m pip >/dev/null; then
+#    echo "pip is installed."
+#else
+#    curl -sSL https://bootstrap.pypa.io/get-pip.py | $the_real_py_command
+#fi
+#
+#if $the_real_py_command -m pip show auto_everything > /dev/null; then
+#    echo "python package auto_everything installed."
+#else
+#    $the_real_py_command -m pip install "git+https://github.com/yingshaoxo/auto_everything.git@dev"
+#fi
 
 
 echo "yingshaoxo_code_pilot Installation Finished."
