@@ -27,3 +27,7 @@ rm -fr ~/.vim/pack/yingshaoxo_code_pilot
 ## Todo List
 * Make a pure python service that only have two API: `scan_folder(path)` and `generate_code(previous_code)->list[str]`
 * In vim plugin, we simply call the two functions to: 1. scan current file parent folder. 2. do code generation,
+
+To achive that, you should have a command line to launch a server, for example `yingshaoxo_code_pilot`
+
+And it should have some commands like `yingshaoxo_code_pilot start`, `yingshaoxo_code_pilot start_with_codet5`, `yingshaoxo_code_pilot shell`, `yingshaoxo_code_pilot scan *`
