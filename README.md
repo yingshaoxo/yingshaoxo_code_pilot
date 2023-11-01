@@ -1,7 +1,7 @@
 # yingshaoxo_code_pilot
 It is an offline 'AI' code completion tool made for vim.
 
-> Don't use this if your computer has a lot of code. Instead, try to run this in a virtualbox machine. From coding from 0, it would be much quicker to the codebase scan. Because for now, this software will scan "~" folder to get source code.
+> Don't use this if your computer has a lot of code. Instead, try to run this in a virtualbox machine. Start coding from 0, it would be much quicker for the codebase scanning. Because for current version, this software will scan "~" home folder to get source code, which may take a lot of time.
 
 ## Install
 ```bash
@@ -25,5 +25,5 @@ rm -fr ~/.vim/pack/yingshaoxo_code_pilot
 ```
 
 ## Todo List
-* Make a pure python service that only got two API: `scan_folder(path)` and `generate_code(previous_code)->list[str]`
+* Make a pure python service that only have two API: `scan_folder(path)` and `generate_code(previous_code)->list[str]`
 * In vim plugin, we simply call the two functions to: 1. scan current file parent folder. 2. do code generation,
