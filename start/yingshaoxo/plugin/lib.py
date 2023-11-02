@@ -1,6 +1,7 @@
 import vim
 import re
-from time import sleep
+import time
+import multiprocessing
 
 from auto_everything.terminal import Terminal
 terminal = Terminal()
@@ -20,10 +21,31 @@ seperator = "\n\n\n"
 type_list = ["."+current_file_type, ".md", ".py", ".txt", ".js", ".ts", ".c", ".cpp", ".cc", ".rs", ".go", ".java", ".kt", ".sh", ".dart", ".css", ".less"]
 #type_list = ["."+current_file_type, ".py", ".js", ".ts", ".sh", ".css", ".less"]
 
-files = disk.get_files(folder=current_working_directory, recursive=True, type_limiter=type_list, use_gitignore_file=True)
 data_source_text = ""
-for file in files:
-    data_source_text += io_.read(file) + "\n\n\n\n"
+def get_data_source_text(message_queue):
+    files = disk.get_files(folder=current_working_directory, recursive=True, type_limiter=type_list, use_gitignore_file=True)
+    data_source_text = ""
+    for file in files:
+        data_source_text += io_.read(file) + "\n\n\n\n"
+    message_queue.put(data_source_text)
+
+# set data_source_text to "" when source folder is too big for reading. timeout is 3 seconds
+message_queue = multiprocessing.Queue()
+a_process = multiprocessing.Process(target=get_data_source_text, args=(message_queue, ))
+a_process.start()
+start_time = time.time()
+while True:
+    if not message_queue.empty():
+        data_source_text = message_queue.get()
+        break
+
+    current_time = time.time()
+    if (current_time - start_time) > 3:
+        data_source_text = ""
+        break
+    time.sleep(0.2)
+if a_process.is_alive():
+    a_process.kill()
 
 
 yingshaoxo_tokenizer = None
