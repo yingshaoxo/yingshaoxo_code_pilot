@@ -13,6 +13,7 @@ from auto_everything.disk import Disk
 disk = Disk()
 
 from auto_everything.ml import Yingshaoxo_Text_Generator
+#text_generator = Yingshaoxo_Text_Generator()
 
 current_working_directory = terminal.run_command("pwd")
 current_file_type = vim.eval("expand('%:e')")
