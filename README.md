@@ -4,6 +4,16 @@ It is an offline 'AI' code completion tool made for vim.
 > For now, this plugin will only use current folder source code as the data for auto_completion.
 
 ## Install
+### 1.Compile vim with dynamic python support (otherwise, you can't use python in vim and can't use YouCompleteMe)
+```bash
+git clone https://github.com/vim/vim.git
+cd vim/src
+./configure --with-features=huge --enable-python3interp=dynamic
+make
+sudo make install
+```
+
+### 2.Install yingshaoxo_code_pilot
 ```bash
 curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/main/install.sh | bash
 ```
