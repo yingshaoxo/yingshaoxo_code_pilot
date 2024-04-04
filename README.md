@@ -30,6 +30,21 @@ Just open a file `vim hi.txt`, in the line you want to complete, hit `Ctrl + Shi
 rm -fr ~/.vim/pack/yingshaoxo_code_pilot
 ```
 
+## If it's not work
+You can create your own version of VIM according to my guide:
+```
+0. use 0 third_party packages, use less python built-in module since they may not exists on new python implementation in other programming language
+1. first, read the second command line paramater as txt file path
+2. read text from that txt file
+3. display it after call os.system("clear")
+4. listen on keyboard j,k,l,h,dd,b,w,i,esc,:ZZ,:ZQ, do operations accordingly by sending signal to tty console
+5. add more operations like shift+^,v+selection,yy,p
+6. add readme docs for new vim clone
+7. create a new code_pilot extension as a callback handler function when user using vim_clone, all we have to do is 'import our_extension_module; Global_Extension_List.append(our_module.handle_operation)', when user do operations, the new_vim will call functions in Global_Extension_List with some input_data; don't forget to use try_catch when loop Global_Extension_List
+
+Author: yingshaoxo
+```
+
 <!--
 ## Todo List (may never complish)
 * Make a pure python service that only have two API: `scan_folder(path)` and `generate_code(previous_code)->list[str]`
