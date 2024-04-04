@@ -322,7 +322,9 @@ class Disk:
             the file path
         """
         path = self._expand_user(path)
-        return Path(path).exists()
+        return os.path.exists(path)
+        #return Path(path).exists()
+        #Path("").exists() will return True, which is not correct
 
     def is_directory(self, path: str) -> bool:
         """
@@ -396,6 +398,46 @@ class Disk:
                 match = True
                 break
         return match
+
+    def get_gitignore_folders_and_files(self, folder: str, also_return_dot_git_folder: bool = False) -> list[str]:
+        files = self.get_files(folder=folder)
+
+        if "version" not in t.run_command("git --version").lower():
+            print("error: git needs to get installed for using 'use_gitignore_file' paramater.")
+            return files
+
+        ignored_files = []
+        git_folder_list = []
+        for file in files:
+            if "/.git/" in file:
+                a_git_folder = file.split("/.git/")[0]
+                if a_git_folder in git_folder_list:
+                    continue
+                else:
+                    git_folder_list.append(a_git_folder)
+
+                result = t.run_command(f"git ls-files --other --directory", cwd=a_git_folder).strip()
+                if len(result) != 0:
+                    if result.lower().startswith("fatal"):
+                        continue
+                    temp_files = result.split("\n")
+                    temp_files = [self.join_paths(a_git_folder, one) for one in temp_files]
+                    ignored_files += temp_files
+        ignored_files = list(set(ignored_files))
+
+        if also_return_dot_git_folder == True:
+            dot_git_folder_files = []
+            for file in files:
+                if file not in ignored_files:
+                    for git_folder in git_folder_list:
+                        a_git_folder = git_folder + "/.git/"
+                        if file.startswith(a_git_folder):
+                            if a_git_folder not in dot_git_folder_files:
+                                dot_git_folder_files.append(a_git_folder)
+                                break
+            ignored_files += dot_git_folder_files
+
+        return ignored_files
 
     def get_files(
         self,
@@ -483,41 +525,6 @@ class Disk:
 
             files = result_files
 
-        """
-        if use_gitignore_file:
-            if "version" not in t.run_command("git --version").lower():
-                print("error: git needs to get installed for using 'use_gitignore_file' paramater.")
-                return files
-            ignored_files = []
-            git_folder_list = []
-            for file in files:
-                if "/.git/" in file:
-                    a_git_folder = file.split("/.git/")[0]
-                    if a_git_folder in git_folder_list:
-                        continue
-                    else:
-                        git_folder_list.append(a_git_folder)
-
-                    result = t.run_command(f"git ls-files --other --directory", cwd=a_git_folder).strip()
-                    if len(result) != 0:
-                        if result.lower().startswith("fatal"):
-                            continue
-                        ignored_files += result.split("\n")
-            ignored_files = list(set(ignored_files))
-
-            new_files = []
-            for file in files:
-                if file not in ignored_files:
-                    ok = True
-                    for git_folder in git_folder_list:
-                        if file.startswith(git_folder + "/.git/"):
-                            ok = False
-                            break
-                    if ok:
-                        new_files.append(file)
-            files = new_files
-        """
-
         return files
 
     def get_folder_and_files(
@@ -525,7 +532,8 @@ class Disk:
         folder: str,
         recursive: bool = True,
         type_limiter: List[str] | None = None,
-        gitignore_text: str|None = None
+        gitignore_text: str|None = None,
+        ignore_symbolic_link: bool = True
     ) -> Iterable[_FileInfo]:
         """
         Get files recursively under a folder.
@@ -562,6 +570,10 @@ class Disk:
                     ):
                         continue
 
+                if ignore_symbolic_link == True:
+                    if os.path.islink(abs_folder_path):
+                        continue
+
                 yield _FileInfo(
                     level=level,
                     path=abs_folder_path,
@@ -594,6 +606,10 @@ class Disk:
                     ):
                         continue
 
+                if ignore_symbolic_link == True:
+                    if os.path.islink(abs_folder_path):
+                        continue
+
                 if os.path.isfile(abs_folder_path):
                     yield _FileInfo(
                     level=level,
@@ -624,6 +640,7 @@ class Disk:
         reverse: bool = False,
         type_limiter: List[str] | None = None,
         gitignore_text: str|None = None,
+        ignore_symbolic_link: bool = True
     ) -> _FileInfo:
         """
         Get files and folders recursively under a folder.
@@ -689,6 +706,10 @@ class Disk:
                         ):
                             continue
 
+                    if ignore_symbolic_link == True:
+                        if os.path.islink(file_path):
+                            continue
+
                     new_node = _FileInfo(
                         path=file_path,
                         is_folder=os.path.isdir(file_path),
@@ -718,6 +739,7 @@ class Disk:
         recursive: bool = True,
         include_docker_ignore_file: bool = False,
         return_list_than_tree: bool = False,
+        ignore_symbolic_link: bool = True
     ) -> _FileInfo | list[_FileInfo]:
         """
         Get files and folders recursively under a folder.
@@ -787,6 +809,10 @@ class Disk:
                     ignore_pattern_list=ignore_pattern_list,
                 ):
                     continue
+
+                if ignore_symbolic_link == True:
+                    if os.path.islink(file_path):
+                        continue
 
                 new_node = _FileInfo(
                     path=file_path,
@@ -904,7 +930,7 @@ class Disk:
                 file_hash.update(data)
         return file_hash.hexdigest()
 
-    def get_hash_of_a_file_by_using_yingshaoxo_method(self, path: str) -> str:
+    def get_hash_of_a_file_by_using_yingshaoxo_method(self, path: str, bytes_data: bytes | None = None, level: int = 1, length: int = 8, seperator: str = "_", with_size: bool = False) -> str:
         """
         get hash string based on the bytes of a file by using yingshaoxo method.
 
@@ -912,15 +938,62 @@ class Disk:
         ----------
         path: string
             the file path
+        bytes_data: bytes
+            the file bytes
+        level: int
+            how accurate it should be, only work for bytes_data. The higher the better.
+        length: int
+            default value is 8, but 1 would also be fine
         """
+        """
+        You could use it as "fuzz hash" by do the check for n parts of the file, then "".join() those result as a longer string
+        For example:
+
+        hash_code = disk.get_hash_of_a_file_by_using_yingshaoxo_method("", bytes_data=text.encode("utf-8"), level=128, length=10, seperator="")
+        """
+        dividor = (10 ** length) - 1
+        seperator_length = len(seperator)
+
+        if bytes_data != None:
+            all_size = len(bytes_data)
+            part_size = all_size // level
+            if part_size == 0:
+                raise Exception("The level is too high but the bytes_data is too small")
+            if with_size == True:
+                result_string = str(all_size) + seperator
+            else:
+                result_string = ""
+            for level_i in range(level):
+                start_index = level_i * part_size
+                end_index = start_index + part_size
+                file_hash = 0
+                operator_flag = True
+                for one_byte in bytes_data[start_index: end_index]:
+                    if operator_flag == True:
+                        file_hash += one_byte
+                        operator_flag = False
+                    else:
+                        file_hash -= one_byte
+                        operator_flag = True
+                file_hash = file_hash % dividor
+                file_hash = str(file_hash)
+                file_hash = ('0' * (length - len(file_hash))) + file_hash
+                result_string += file_hash + seperator
+            if seperator_length == 0:
+                return result_string
+            else:
+                return result_string[:-seperator_length]
+
         segment_size = 1024 * 1024 * 1
         path = self._expand_user(path)
         file_hash = 0
+        all_size = 0
         with open(path, "rb") as f:
             operator_flag = True
             while True:
                 #data = f.read(8192)
                 data = f.read(segment_size)
+                all_size += len(data)
                 if not data:
                     break
                 for one_byte in data:
@@ -930,9 +1003,17 @@ class Disk:
                     else:
                         file_hash -= one_byte
                         operator_flag = True
-        file_hash = file_hash % 100000000
+        file_hash = file_hash % dividor
         file_hash = str(file_hash)
-        return file_hash
+        file_hash = ('0' * (length - len(file_hash))) + file_hash
+        if with_size == True:
+            return str(all_size) + "_" + file_hash
+        else:
+            return file_hash
+
+    def get_fuzz_hash_by_using_yingshaoxo_method(self, bytes_data: bytes, level: int = 256) -> str:
+        hash_code = self.get_hash_of_a_file_by_using_yingshaoxo_method("", bytes_data=bytes_data, level=level, length=1, seperator="", with_size=True)
+        return hash_code
 
     def get_hash_of_a_file_by_using_sha1(self, path: str) -> str:
         """
@@ -1422,6 +1503,78 @@ class Disk:
                     if file.endswith("." + end):
                         new_file = file[:-len(end)] + end.lower()
                         disk.move_a_file(source_file_path=file, target_file_path=new_file)
+
+    def compress_bytes_by_using_yingshaoxo_method(self, bytes_data, window_length=1024) -> bytes:
+        text = self.bytes_to_base64(bytes_data)
+
+        text_length = len(text)
+
+        special_char_1 = chr(1)
+
+        index = 0
+        increasing_index = 0
+        sub_string_hash_dict = {}
+        data_list = []
+        while True:
+            sub_string = text[index: index+window_length]
+
+            if sub_string in sub_string_hash_dict:
+                data_list.append(sub_string_hash_dict[sub_string])
+            else:
+                sub_string_hash_dict[sub_string] = special_char_1 + str(increasing_index) + special_char_1
+                increasing_index += 1
+                data_list.append(sub_string)
+
+            index += window_length
+            if index >= text_length:
+                break
+
+        final_result = "".join(data_list)
+        return final_result.encode("ascii")
+
+    def uncompress_bytes_by_using_yingshaoxo_method(self, bytes_data, window_length=1024):
+        data_list_string = bytes_data.decode("ascii")
+
+        special_char_1 = chr(1)
+        data_text_length = len(data_list_string)
+
+        the_dict = {}
+        the_list = []
+        increasing_index = 0
+        index = 0
+        while True:
+            if index >= data_text_length:
+                break
+
+            if data_list_string[index] == special_char_1:
+                index_chars = ""
+                temp_index = index + 1
+                while True:
+                    char = data_list_string[temp_index]
+                    if char == special_char_1:
+                        index = temp_index + 1
+                        break
+                    else:
+                        index_chars += char
+                    temp_index += 1
+                the_list.append(int(index_chars))
+                continue
+            else:
+                the_dict[increasing_index] = data_list_string[index: index+window_length]
+                the_list.append(increasing_index)
+                increasing_index += 1
+
+            index += window_length
+            if index >= data_text_length:
+                break
+
+        result_text = ""
+        for one in the_list:
+            result_text += the_dict[one]
+
+        final_data = self.base64_to_bytes(result_text)
+        return final_data
+
 
 
 class Store:
