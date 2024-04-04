@@ -1,0 +1,12 @@
+"""
+1. first read the second paramater as txt file path
+2. read text content from that txt file
+3. display it after call os.system("clear")
+4. listen on keyboard j,k,l,h,dd,b,w,i,esc,:ZZ,:ZQ, do operations accordingly
+5. add more operations like shift+^,v+selection,yy,p
+6. add readme docs for new vim clone
+7. create a new code_pilot extension as a sub function when user using vim_clone, all we have to do is 'import our_module; Global_Extension_List.append(our_module.handle_operation)'; don't forget to use try_catch
+
+Author: yingshaoxo
+"""
+

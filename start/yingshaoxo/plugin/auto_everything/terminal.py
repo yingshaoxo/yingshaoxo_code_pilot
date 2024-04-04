@@ -60,7 +60,7 @@ class Terminal:
 
         self._io = IO()
 
-    def fix_path(self, path: str, username: str | None = None, startswith: bool = False) -> str:
+    def fix_path(self, path: str, username = None, startswith: bool = False) -> str:
         # """
         # replace ~ with system username
         # // depressed, please use expanduser_in_path
@@ -100,7 +100,7 @@ class Terminal:
             print(path)
         return path.replace("\\", "/")
 
-    def expanduser_in_path(self, path: str, username: str | None = None) -> str:
+    def expanduser_in_path(self, path: str, username = None) -> str:
         # """
         # replace ~ with system username
 
@@ -194,7 +194,7 @@ class Terminal:
         except Exception:
             pass
 
-    def run(self, c: str, cwd: str | None = None, wait: bool = True, use_os_system: bool = False):
+    def run(self, c: str, cwd = None, wait: bool = True, use_os_system: bool = False):
         """
         run shell commands without value returning
 
@@ -353,7 +353,7 @@ class Terminal:
     #     else:
     #         return p
 
-    def run_command(self, c: str, timeout: int = 15, cwd: str | None = None) -> str:
+    def run_command(self, c: str, timeout: int = 15, cwd = None) -> str:
         """
         run shell commands with return value
 
@@ -400,7 +400,7 @@ class Terminal:
             self.__remove_temp_sh(temp_sh)
             return str(e)
 
-    def run_python_code(self, code: str, timeout: int = 15, cwd: str | None = None) -> str:
+    def run_python_code(self, code: str, timeout: int = 15, cwd = None) -> str:
         """
         run python code with return value
 
@@ -449,7 +449,7 @@ class Terminal:
             self.__remove_temp_sh(temp_sh)
             return str(e)
 
-    def run_program(self, name: str, cwd: str | None = None):
+    def run_program(self, name: str, cwd = None):
         """
         run shell commands, especially programs which can be started from terminal.
         This function will not wait program to be finished.
@@ -487,7 +487,7 @@ class Terminal:
         return file_path, args
 
     def run_py(
-        self, file_path_with_command: str, cwd: str | None = None, wait: bool = False
+        self, file_path_with_command: str, cwd = None, wait: bool = False
     ):
         """
         run py_file
@@ -515,7 +515,7 @@ class Terminal:
             self.run(command, cwd=cwd, wait=True)
 
     def run_sh(
-        self, file_path_with_command: str, cwd: str | None = None, wait: bool = False
+        self, file_path_with_command: str, cwd = None, wait: bool = False
     ):
         """
         run sh_file
@@ -605,7 +605,7 @@ class Terminal:
         else:
             return False
 
-    def is_running_by_pid(self, pid: int | str) -> bool:
+    def is_running_by_pid(self, pid) -> bool:
         """
         cheack if a program is running by pid
 
@@ -620,7 +620,7 @@ class Terminal:
         else:
             return False
 
-    def kill_a_process_by_pid(self, pid: int | str, force: bool = True, wait: bool = False, timeout: int = 30):
+    def kill_a_process_by_pid(self, pid, force: bool = True, wait: bool = False, timeout: int = 30):
         """
         kill a program by its pid(process id)
 
@@ -709,7 +709,7 @@ class Terminal_User_Interface:
             # for windows platfrom
             os.system('cls')
 
-    def confirm_box(self, text: str, yes_callback_function: Callable[[], None] | None = None, no_callback_function: Callable[[], None] | None = None) -> str:
+    def confirm_box(self, text: str, yes_callback_function = None, no_callback_function = None) -> str:
         """
         terminal_user_interface.confirm_box(
             "Are you sure to delete it?",
@@ -738,7 +738,7 @@ class Terminal_User_Interface:
                     yes_callback_function()
                 return "y"
 
-    def selection_box(self, text: str, selections: list[Tuple[str, Callable[[],None] | None]], seperate_page_loading_function: Callable[[int, int], list[Tuple[str, Callable[[],None] | None]]] | None = None) -> str:
+    def selection_box(self, text: str, selections, seperate_page_loading_function = None) -> str:
         """
         terminal_user_interface.selection_box(
             "Please do a choice:",
@@ -827,7 +827,7 @@ class Terminal_User_Interface:
                     time.sleep(3)
                     pass
 
-    def input_box(self, text: str, default_value: str, handle_function: Callable[[str], None] | None) -> str:
+    def input_box(self, text: str, default_value: str, handle_function) -> str:
         """
         your_name = terminal_user_interface.input_box(
             "Please input your name:",
