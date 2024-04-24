@@ -45,6 +45,17 @@ You can create your own version of VIM according to my guide:
 Author: yingshaoxo
 ```
 
+## If it's not work 2
+I have a good idea: 
+
+You can simply have a shell program or webpage, where the user can paste a line of code, which might be a function name with partial arguments.
+
+What you need to do is search the source code, find the most similar function, return its documentation or example.
+
+Problem solved. 
+
+Since you only use this feature a few times per day, so this is a good design.
+
 <!--
 ## Todo List (may never complish)
 * Make a pure python service that only have two API: `scan_folder(path)` and `generate_code(previous_code)->list[str]`
