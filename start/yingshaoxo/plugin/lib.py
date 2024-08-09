@@ -42,10 +42,10 @@ try:
             break
 
         current_time = time.time()
-        if (current_time - start_time) > 3:
+        if (current_time - start_time) > 1:
             data_source_text = ""
             break
-        time.sleep(0.2)
+        time.sleep(0.05)
     if a_process.is_alive():
         a_process.kill()
 
