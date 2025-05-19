@@ -3,7 +3,7 @@ It is an offline 'AI' code completion tool made for vim.
 
 > For now, this plugin will only use current folder source code as the data for auto_completion.
 
-> It is based on Python3.10.4, check your vim's python version: `:python3 import sys; print(sys.version)`. As I tested it out, it will not work on 3.7.3, a 3 years ago python, because it does not have type annotation. **I think we should try to write some python code that could work at least 10 years than 3 years. Otherwise, it would end like javascript, which code will not survive after 3 months. It's dependencies chain will be broken.**
+> **It is based on Python3.10.4**, check your vim's python version: `:python3 import sys; print(sys.version)`. As I tested it out, it will not work on 3.7.3, a 3 years ago python, because it does not have type annotation. **I think we should try to write some python code that could work at least 10 years than 3 years. Otherwise, it would end like javascript, which code will not survive after 3 months. It's dependencies chain will be broken.**
 
 ## Install
 ### 1.Compile vim with dynamic python support (otherwise, you can't use python in vim and can't use YouCompleteMe)
