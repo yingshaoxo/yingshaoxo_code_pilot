@@ -6,6 +6,7 @@ It is an offline 'AI' code completion tool made for vim.
 > **It is based on Python3.10.4**, check your vim's python version: `:python3 import sys; print(sys.version)`. As I tested it out, it will not work on 3.7.3, a 3 years ago python, because it does not have type annotation. **I think we should try to write some python code that could work at least 10 years than 3 years. Otherwise, it would end like javascript, which code will not survive after 3 months. It's dependencies chain will be broken.**
 
 ## Install
+<!--
 ### 1.Compile vim with dynamic python support (otherwise, you can't use python in vim and can't use YouCompleteMe)
 ```bash
 git clone https://github.com/vim/vim.git
@@ -19,13 +20,16 @@ sudo make install
 ```bash
 curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/main/install.sh | bash
 ```
+-->
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/main/install.sh | bash
+```
 
 ## Usage
-Just open a file `vim hi.txt`, in the line you want to complete, hit `Ctrl + Shift + P`.
+Just open a file `vim hi.txt`, in the line you want to complete, hit `Alt + /`.
 
 > By the way, vim has a built-in auto_complete command: `ctrl+p`
-
-> If you want to use a real AI version, use this in non_insert mode: `Shift + Tab`
 
 ## Uninstall
 ```bash

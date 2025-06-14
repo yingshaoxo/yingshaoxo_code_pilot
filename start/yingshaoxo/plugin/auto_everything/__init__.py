@@ -26,12 +26,14 @@ except Exception as e:
 try:
     from auto_everything.image_ import Image
 except Exception as e:
-    print(e)
+    pass
+    #print(e)
 
 try:
     from auto_everything.audio_ import Audio
 except Exception as e:
-    print(e)
+    pass
+    #print(e)
 
 try:
     from auto_everything.string_ import String
