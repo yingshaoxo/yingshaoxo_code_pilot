@@ -1,3 +1,5 @@
+" This was updated by github copilot
+"
 let s:plugin_path = expand('<sfile>:p')
 let s:plugin_dir = fnamemodify(s:plugin_path, ':h')
 let s:lib_path = s:plugin_dir . '/lib.py'
