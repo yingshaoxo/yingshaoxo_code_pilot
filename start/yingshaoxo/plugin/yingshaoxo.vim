@@ -122,8 +122,15 @@ function! s:ShowSearchResults(results)
     let s:popup_results = a:results
     let s:current_selection = 0
     
-    " Store current window number
+    " Store current window number and states
     let s:original_winnr = winnr()
+    let s:original_modifiable = &l:modifiable
+    let s:was_insert_mode = mode() == 'i'
+    
+    " If in insert mode, switch to normal mode first
+    if s:was_insert_mode
+        stopinsert
+    endif
     
     " Format the display lines
     let l:display_lines = []
@@ -135,19 +142,26 @@ function! s:ShowSearchResults(results)
         let l:index += 1
     endfor
 
-    " Make current buffer modifiable before switching
-    let s:original_modifiable = &modifiable
-    setlocal modifiable
-    
     " Close any existing preview window
     silent! pclose
     
-    " Create temporary buffer for preview
+    " Create and set up the preview window content
     let l:tmpfile = tempname()
-    call writefile(l:display_lines + ['', '--- Navigation Help ---', 'Up/Down: Navigate', 'Enter: Select code', 'Esc/q: Close window'], l:tmpfile)
+    call writefile(l:display_lines + ['', '--- Navigation Help ---', 'Up/Down or j/k: Navigate', 'Enter: Select code', 'Esc/q: Close window'], l:tmpfile)
+    
+    " Make sure we're in normal mode and the buffer is modifiable before any window operations
+    if mode() != 'n'
+        stopinsert
+    endif
+    
+    " Switch to original window and make it modifiable
+    execute s:original_winnr . "wincmd w"
+    setlocal modifiable
+    
+    " Create the preview window
     execute 'silent! pedit ' . l:tmpfile
     
-    " Configure the preview window
+    " Switch to preview window
     wincmd P
     
     " Set window-specific options
@@ -189,9 +203,15 @@ endfunction
 function! s:ClosePreviewAndReturn()
     pclose
     " Return to original window
-    execute s:original_winnr . 'wincmd w'
+    execute s:original_winnr . "wincmd w"
+    
     " Restore original modifiable state
     let &l:modifiable = s:original_modifiable
+    
+    " Return to insert mode if we were in it
+    if s:was_insert_mode
+        startinsert
+    endif
 endfunction
 
 function! s:UpdatePreviewSelection()
@@ -232,36 +252,57 @@ function! s:ApplySelectedCompletion()
         let l:selected = s:popup_results[l:selected_index]
         let l:lines = split(l:selected.text, "\n")
         
-        " Store the changes we want to make
-        let l:changes = l:lines
+        " Return to original window first
+        execute s:original_winnr . "wincmd w"
         
-        " Return to original window and restore modifiable
-        execute s:original_winnr . 'wincmd w'
+        " Ensure we're in normal mode for the modification
+        if mode() != 'n'
+            stopinsert
+        endif
+        
+        " Set modifiable before making changes
         setlocal modifiable
         
         " Close preview window
         pclose
         
-        if !empty(l:changes)
+        if !empty(l:lines)
             " Apply the changes
-            call setline('.', l:changes[0])
-            if len(l:changes) > 1
-                call append(line('.'), l:changes[1:])
+            call setline('.', l:lines[0])
+            if len(l:lines) > 1
+                call append(line('.'), l:lines[1:])
             endif
         endif
         
         " Restore original modifiable state
         let &l:modifiable = s:original_modifiable
+        
+        " Return to insert mode if we were in it
+        if s:was_insert_mode
+            startinsert
+        endif
     endif
 endfunction
 
 function! s:Search_similar_code()
+    " Store the original mode
+    let s:was_insert_mode = mode() == 'i'
+    
+    " If in insert mode, switch to normal mode first
+    if s:was_insert_mode
+        stopinsert
+    endif
+    
     let l:cwd = getcwd()
     let l:current_line = getline('.')
     
     " Skip if line is empty
     if empty(l:current_line)
         echo "Empty line, nothing to search"
+        " Return to insert mode if we were in it
+        if s:was_insert_mode
+            startinsert
+        endif
         return
     endif
     
@@ -279,11 +320,19 @@ function! s:Search_similar_code()
             call s:ShowSearchResults(l:results)
         else
             echo "No matching code found"
+            " Return to insert mode if we were in it
+            if s:was_insert_mode
+                startinsert
+            endif
         endif
     else
         echohl ErrorMsg
         echo "Search failed: " . l:result
         echohl None
+        " Return to insert mode if we were in it
+        if s:was_insert_mode
+            startinsert
+        endif
     endif
 endfunction
 
