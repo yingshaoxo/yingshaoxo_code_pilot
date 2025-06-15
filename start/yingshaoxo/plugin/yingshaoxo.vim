@@ -1,5 +1,8 @@
 " This was updated by github copilot
 "
+set encoding=utf-8
+scriptencoding utf-8
+
 let s:plugin_path = expand('<sfile>:p')
 let s:plugin_dir = fnamemodify(s:plugin_path, ':h')
 let s:lib_path = s:plugin_dir . '/lib.py'
@@ -104,3 +107,192 @@ inoremap <M-/> <C-o>:call Complete_the_rest()<CR>
 " Escape sequence mapping (for terminals that send escape sequences)
 nnoremap <Esc>/ :call Complete_the_rest()<CR>
 inoremap <Esc>/ <C-o>:call Complete_the_rest()<CR>
+
+" Check if we have popup support
+let s:has_popup = exists('*popup_create') && exists('*win_execute')
+let s:is_neovim = has('nvim')
+
+" Global variables for state
+let s:popup_winid = 0
+let s:popup_results = []
+let s:current_selection = 0
+let s:preview_bufnr = -1
+
+function! s:ShowSearchResults(results)
+    let s:popup_results = a:results
+    let s:current_selection = 0
+    
+    " Store current window number
+    let s:original_winnr = winnr()
+    
+    " Format the display lines
+    let l:display_lines = []
+    let l:index = 0
+    for result in a:results
+        let l:preview = split(result.text, "\n")[0]
+        let l:display = printf("[%d] %s:%d: %s", l:index + 1, fnamemodify(result.file, ':t'), result.line, l:preview)
+        call add(l:display_lines, l:display)
+        let l:index += 1
+    endfor
+
+    " Make current buffer modifiable before switching
+    let s:original_modifiable = &modifiable
+    setlocal modifiable
+    
+    " Close any existing preview window
+    silent! pclose
+    
+    " Create temporary buffer for preview
+    let l:tmpfile = tempname()
+    call writefile(l:display_lines + ['', '--- Navigation Help ---', 'Up/Down: Navigate', 'Enter: Select code', 'Esc/q: Close window'], l:tmpfile)
+    execute 'silent! pedit ' . l:tmpfile
+    
+    " Configure the preview window
+    wincmd P
+    
+    " Set window-specific options
+    setlocal nonumber
+    setlocal norelativenumber
+    setlocal nofoldenable
+    setlocal nomodifiable
+    setlocal cursorline
+    setlocal buftype=nofile
+    setlocal bufhidden=wipe
+    
+    " Set up mappings for the preview window
+    nnoremap <buffer> <silent> <CR> :call <SID>ApplySelectedCompletion()<CR>
+    nnoremap <buffer> <silent> q :call <SID>ClosePreviewAndReturn()<CR>
+    nnoremap <buffer> <silent> <ESC> :call <SID>ClosePreviewAndReturn()<CR>
+    nnoremap <buffer> <silent> j :<C-u>call <SID>PreviewMove('j')<CR>
+    nnoremap <buffer> <silent> k :<C-u>call <SID>PreviewMove('k')<CR>
+    nnoremap <buffer> <silent> <Down> :<C-u>call <SID>PreviewMove('j')<CR>
+    nnoremap <buffer> <silent> <Up> :<C-u>call <SID>PreviewMove('k')<CR>
+    
+    " Move cursor to first result
+    normal! gg
+endfunction
+
+function! s:PreviewMove(direction)
+    if a:direction == 'j'
+        if line('.') < line('$') - 4  " Don't move into the help text
+            normal! j
+            call s:UpdatePreviewSelection()
+        endif
+    elseif a:direction == 'k'
+        if line('.') > 1
+            normal! k
+            call s:UpdatePreviewSelection()
+        endif
+    endif
+endfunction
+
+function! s:ClosePreviewAndReturn()
+    pclose
+    " Return to original window
+    execute s:original_winnr . 'wincmd w'
+    " Restore original modifiable state
+    let &l:modifiable = s:original_modifiable
+endfunction
+
+function! s:UpdatePreviewSelection()
+    let s:current_selection = line('.') - 1
+endfunction
+
+function! s:PopupFilter(winid, key)
+    if !s:has_popup
+        return 0
+    endif
+    
+    if a:key == "\<UP>" || a:key == 'k'
+        let s:current_selection = max([0, s:current_selection - 1])
+        call win_execute(a:winid, 'normal! k')
+        return 1
+    elseif a:key == "\<DOWN>" || a:key == 'j'
+        let s:current_selection = min([len(s:popup_results) - 1, s:current_selection + 1])
+        call win_execute(a:winid, 'normal! j')
+        return 1
+    elseif a:key == "\<CR>"
+        call s:ApplySelectedCompletion()
+        return 1
+    elseif a:key == "\<ESC>"
+        call popup_close(a:winid)
+        return 1
+    endif
+    return 0
+endfunction
+
+function! s:PopupCallback(winid, result)
+    let s:popup_winid = 0
+endfunction
+
+function! s:ApplySelectedCompletion()
+    let l:selected_index = line('.') - 1
+    
+    if l:selected_index >= 0 && l:selected_index < len(s:popup_results)
+        let l:selected = s:popup_results[l:selected_index]
+        let l:lines = split(l:selected.text, "\n")
+        
+        " Store the changes we want to make
+        let l:changes = l:lines
+        
+        " Return to original window and restore modifiable
+        execute s:original_winnr . 'wincmd w'
+        setlocal modifiable
+        
+        " Close preview window
+        pclose
+        
+        if !empty(l:changes)
+            " Apply the changes
+            call setline('.', l:changes[0])
+            if len(l:changes) > 1
+                call append(line('.'), l:changes[1:])
+            endif
+        endif
+        
+        " Restore original modifiable state
+        let &l:modifiable = s:original_modifiable
+    endif
+endfunction
+
+function! s:Search_similar_code()
+    let l:cwd = getcwd()
+    let l:current_line = getline('.')
+    
+    " Skip if line is empty
+    if empty(l:current_line)
+        echo "Empty line, nothing to search"
+        return
+    endif
+    
+    " Convert line to proper UTF-8 encoding if needed
+    if &encoding != 'utf-8'
+        let l:current_line = iconv(l:current_line, &encoding, 'utf-8')
+    endif
+    
+    let l:cmd = printf('%s "%s" --mode search %s %s 512', s:python_cmd, s:lib_path, shellescape(l:cwd), shellescape(l:current_line))
+    
+    let l:result = system(l:cmd)
+    if v:shell_error == 0
+        let l:results = json_decode(l:result)
+        if !empty(l:results)
+            call s:ShowSearchResults(l:results)
+        else
+            echo "No matching code found"
+        endif
+    else
+        echohl ErrorMsg
+        echo "Search failed: " . l:result
+        echohl None
+    endif
+endfunction
+
+" Update the mappings to use the new function name
+nnoremap <A-f> :call <SID>Search_similar_code()<CR>
+inoremap <A-f> <C-o>:call <SID>Search_similar_code()<CR>
+
+nnoremap <M-f> :call <SID>Search_similar_code()<CR>
+inoremap <M-f> <C-o>:call <SID>Search_similar_code()<CR>
+
+nnoremap <Esc>f :call <SID>Search_similar_code()<CR>
+inoremap <Esc>f <C-o>:call <SID>Search_similar_code()<CR>

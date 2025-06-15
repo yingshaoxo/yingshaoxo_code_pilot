@@ -2114,6 +2114,518 @@ export default Client_{identity_name}
 
         return template_text
 
+    def _convert_yrpc_code_into_javascript_objects_code(self, source_code):
+        arguments_dict, _ = self.get_information_from_yrpc_protocol_code(source_code=source_code)
+
+        enum_code_block_list = []
+        dataclass_code_block_list = []
+        for class_name, variable_info in arguments_dict.items():
+            code_block_type = variable_info["**type**"]
+            del variable_info["**type**"]
+
+            if code_block_type == "enum":
+                variable_list = []
+                for index, one in enumerate(variable_info.values()):
+                    name = one['name']
+                    variable_list.append(f"""
+    {name}: "{name}",
+                    """.rstrip().lstrip('\n'))
+                variable_list_text = "\n".join(variable_list)
+
+                enum_class_text = f"""
+export const {class_name} = {{
+{variable_list_text}
+}}
+                """.rstrip().lstrip('\n')
+
+                enum_code_block_list.append(enum_class_text)
+            else:
+                interface_variable_list = []
+                variable_list = []
+                property_name_to_its_type_dict_variable_list = []
+                key_string_dict_list = []
+                constructor_arguments_list = []
+                constructor_arguments_inside_code_block_list = []
+
+                for index, one in enumerate(variable_info.values()):
+                    name = one['name']
+                    type = self._yrpc_type_to_typescript_type_dict.get(one['type'])
+                    if type == None:
+                        if one['type'] in arguments_dict.keys():
+                            type = one['type']
+                        else:
+                            raise Exception(f"We don't support type of '{one['type']}', have you defined this type in your protocol code?")
+                    is_list = one['is_list']
+                    is_enum = one['is_enum']
+                    is_custom_message_type = one['is_custom_message_type']
+
+                    variable_list.append(f"""
+    {name}: {type}{"[]" if is_list else ""} | null = null;
+                    """.rstrip().lstrip('\n'))
+
+                    if is_enum or is_custom_message_type:
+                        property_name_to_its_type_dict_variable_list.append(f"""
+                {name}: {type},
+                        """.rstrip().lstrip('\n'))
+                    else:
+                        property_name_to_its_type_dict_variable_list.append(f"""
+                {name}: "{type}",
+                        """.rstrip().lstrip('\n'))
+
+                    key_string_dict_list.append(f"""
+                {name}: "{name}",
+                    """.rstrip().lstrip('\n'))
+
+                    constructor_arguments_list.append(f"""{name}""".rstrip().lstrip('\n'))
+
+                    constructor_arguments_inside_code_block_list.append(f"""
+        this.{name} = null;
+                    """.rstrip().lstrip('\n'))
+
+                variable_list_text = "\n".join(variable_list)
+                property_name_to_its_type_dict_variable_list_text = "\n".join(property_name_to_its_type_dict_variable_list)
+                key_string_dict_list_text = "\n".join(key_string_dict_list)
+                constructor_arguments_list_text = ", ".join(constructor_arguments_list)
+                constructor_arguments_inside_code_block_list_text = "\n".join(constructor_arguments_inside_code_block_list)
+
+                dataclass_text = f"""
+export class {class_name} {{
+    /*
+{variable_list_text}
+    */
+
+    constructor() {{
+{constructor_arguments_inside_code_block_list_text}
+
+        this._property_name_to_its_type_dict = {{
+{property_name_to_its_type_dict_variable_list_text}
+        }};
+
+        this._key_string_dict = {{
+{key_string_dict_list_text}
+        }};
+
+    }}
+
+    to_dict() {{
+        return _general_to_dict_function(this);
+    }}
+
+    _clone() {{
+        var clone = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
+        return clone;
+    }}
+
+    from_dict(item) {{
+        var an_item = new {class_name}();
+        var new_dict = _general_from_dict_function(an_item, item);
+
+        for (const key of Object.keys(new_dict)) {{
+            var value = new_dict[key];
+            //@ts-ignore
+            this[key] = value;
+            //@ts-ignore
+            an_item[key] = value;
+        }}
+
+        return an_item;
+    }}
+}}
+                """.rstrip().lstrip('\n')
+                dataclass_code_block_list.append(dataclass_text)
+
+        enum_code_block_list_text = "\n\n\n".join(enum_code_block_list)
+        dataclass_code_block_list_text = "\n\n\n".join(dataclass_code_block_list)
+
+        template_text = f"""
+const _ygrpc_official_types = ["string", "number", "boolean"];
+
+export const clone_object_ = (obj) =>  JSON.parse(JSON.stringify(obj));
+
+export const get_secret_alphabet_dict_ = (a_secret_string) =>  {{
+    const ascii_lowercase = "abcdefghijklmnopqrstuvwxyz".split("")
+    const number_0_to_9 = "0123456789".split("")
+
+    var new_key = a_secret_string.replace(" ", "").toLowerCase().split("")
+    var character_list = []
+    for (var char of new_key) {{
+        if ((/[a-zA-Z]/).test(char)) {{
+            if (!character_list.includes(char)) {{
+                character_list.push(char)
+            }}
+        }}
+    }}
+
+    if (character_list.length >= 26) {{
+        character_list = character_list.slice(0, 26)
+    }} else {{
+        var characters_that_the_key_didnt_cover = []
+        for (var char of ascii_lowercase) {{
+            if (!character_list.includes(char)) {{
+                characters_that_the_key_didnt_cover.push(char)
+            }}
+        }}
+        character_list = character_list.concat(characters_that_the_key_didnt_cover)
+    }}
+
+    var final_dict = {{}}
+
+    // for alphabet
+    for (var [index, char] of ascii_lowercase.entries()) {{
+        final_dict[char] = character_list[index]
+    }}
+
+    // for numbers
+    var original_numbers_in_alphabet_format = ascii_lowercase.slice(0, 10) // 0-9 representations in alphabet format
+    var secret_numbers_in_alphabet_format = Object.values(final_dict).slice(0, 10)
+    var final_number_list = []
+    for (var index in number_0_to_9) {{
+        var secret_char = secret_numbers_in_alphabet_format[index]
+        if (original_numbers_in_alphabet_format.includes(secret_char)) {{
+            final_number_list.push(String(original_numbers_in_alphabet_format.findIndex((x) => x===secret_char)))
+        }}
+    }}
+    if (final_number_list.length >= 10) {{
+        final_number_list = final_number_list.slice(0, 10)
+    }} else {{
+        var numbers_that_didnt_get_cover = []
+        for (var char of number_0_to_9) {{
+            if (!final_number_list.includes(char)) {{
+                numbers_that_didnt_get_cover.push(char)
+            }}
+        }}
+        final_number_list = final_number_list.concat(numbers_that_didnt_get_cover)
+    }}
+    for (var [index, char] of final_number_list.entries()) {{
+        final_dict[String(index)] = char
+    }}
+
+    return final_dict
+}};
+
+export const encode_message_ = (a_secret_dict, message) => {{
+    var new_message = ""
+    for (const char of message) {{
+        if ((!(/[a-zA-Z]/).test(char)) && (!(/^\d$/).test(char))) {{
+            new_message += char
+            continue
+        }}
+        var new_char = a_secret_dict[char.toLowerCase()]
+        if ((/[A-Z]/).test(char)) {{
+            new_char = new_char.toUpperCase()
+        }}
+        new_message += new_char
+    }}
+    return new_message
+}}
+
+export const decode_message_ = (a_secret_dict, message) => {{
+    var new_secret_dict = {{}}
+    for (var key of Object.keys(a_secret_dict)) {{
+        new_secret_dict[a_secret_dict[key]] = key
+    }}
+    a_secret_dict = new_secret_dict
+
+    var new_message = ""
+    for (const char of message) {{
+        if ((!(/[a-zA-Z]/).test(char)) && (!(/^\d$/).test(char))) {{
+            new_message += char
+            continue
+        }}
+        var new_char = a_secret_dict[char.toLowerCase()]
+        if ((/[A-Z]/).test(char)) {{
+            new_char = new_char.toUpperCase()
+        }}
+        new_message += new_char
+    }}
+    return new_message
+}}
+
+const _general_to_dict_function = (object) => {{
+    var the_type = typeof object
+    if (the_type == "object") {{
+        if (object == null) {{
+            return null
+        }} else if (Array.isArray(object)) {{
+            var new_list = []
+            for (const one of object) {{
+                new_list.push(_general_to_dict_function(one))
+            }}
+            return new_list
+        }} else {{
+            var keys = Object.keys(object);
+            if (keys.includes("_key_string_dict")) {{
+                // custom message type
+                var new_dict = {{}}
+                keys = keys.filter((e) => !["_property_name_to_its_type_dict", "_key_string_dict"].includes(e));
+                for (const key of keys) {{
+                    new_dict[key] = _general_to_dict_function(object[key])
+                    // the enum will become a string in the end, so ignore it
+                }}
+                return new_dict
+            }}
+        }}
+    }} else {{
+        if (_ygrpc_official_types.includes(typeof object)) {{
+            return object
+        }} else {{
+            return null
+        }}
+    }}
+    return null
+}};
+
+const _general_from_dict_function = (old_object, new_object) => {{
+    var the_type = typeof new_object
+    if (the_type == "object") {{
+        if (Array.isArray(new_object)) {{
+            //list
+            var new_list = []
+            for (const one of new_object) {{
+                new_list.push(structuredClone(_general_from_dict_function(old_object, one)))
+            }}
+            return new_list
+        }} else {{
+            // dict or null
+            if (new_object == null) {{
+                return null
+            }} else {{
+                let keys = Object.keys(old_object);
+                if (keys.includes("_key_string_dict")) {{
+                    keys = Object.keys(old_object._property_name_to_its_type_dict)
+                    for (const key of keys) {{
+                        if (Object.keys(new_object).includes(key)) {{
+                            if ((typeof old_object._property_name_to_its_type_dict[key]) == "string") {{
+                                // default value type
+                                old_object[key] = new_object[key]
+                            }} else {{
+                                // custom message type || enum
+                                if (
+                                    (typeof old_object._property_name_to_its_type_dict[key]).includes("class") ||
+                                    (typeof old_object._property_name_to_its_type_dict[key]).includes("function")
+                                ) {{
+                                    // custom message type || a list of custom type
+                                    var reference_object = new (old_object._property_name_to_its_type_dict[key])()
+                                    old_object[key] = structuredClone(_general_from_dict_function(reference_object, new_object[key]))
+                                }} else {{
+                                    // enum
+                                    if (Object.keys(new_object).includes(key)) {{
+                                        old_object[key] = new_object[key]
+                                    }} else {{
+                                        old_object[key] = null
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }} else {{
+                    return null
+                }}
+            }}
+        }}
+    }}
+    return old_object
+}}
+
+{enum_code_block_list_text}
+
+{dataclass_code_block_list_text}
+        """.strip()
+
+        return template_text
+
+    def _convert_yrpc_code_into_javascript_rpc_code(self, identity_name: str, source_code: str) -> str:
+        _, rpc_dict = self.get_information_from_yrpc_protocol_code(source_code=source_code)
+
+        client_function_list: list[str] = []
+        for function_name, parameter_info in rpc_dict.items():
+            input_variable: str = parameter_info["input_variable"]
+            output_variable: str = parameter_info["output_variable"]
+
+            if " " in input_variable:
+                input_variable = re.split(r"\s+", input_variable)[1]
+            if " " in output_variable:
+                output_variable = re.split(r"\s+", output_variable)[1]
+
+            client_function_list.append(f"""
+    {function_name}({input_variable}, response_handle_function) {{
+        this._get_reponse_or_error_by_url_path_and_input("{function_name}", {input_variable}.to_dict(), response_handle_function)
+    }}
+            """.rstrip().lstrip('\n'))
+
+        client_function_list_text = "\n\n".join(client_function_list)
+
+        template_text = f"""
+import * as {identity_name}_objects from './{identity_name}_objects'
+
+export class Client_{identity_name} {{
+  /**
+   * @param {{string}} _service_url is something like: "http://127.0.0.1:80" or "https://127.0.0.1"
+   * @param {{{{ [key: string]: string }}}} _header  http headers, it's a dictionary, liek {{'content-type', 'application/json'}}
+   * @param {{Function}} _error_handle_function will get called when http request got error, you need to give it a function like: (err: String) {{print(err)}}
+   * @param {{Function}} _interceptor_function will get called for every response, you need to give it a function like: (data: dict[Any, Any]) {{print(data)}}
+   * @param {{Function}} _function_before_request will get called before every request, you need to give it a function like: () {{global_loading_animation = true}}
+   * @param {{Function}} _function_after_request will get called after every request, you need to give it a function like: () {{global_loading_animation = false}}
+   */
+
+    /*
+    service_url: string
+    header: {{ [key: string]: string }} = {{}}
+    error_handle_function: (error: string) => void = (error: string) => {{console.log(error)}}
+    special_error_key: string = "__yingshaoxo's_error__"
+    interceptor_function: (data: any) => void = (data: any) => {{console.log(data)}}
+    function_before_request: () => void = () => {{}}
+    function_after_request: () => void = () => {{}}
+    */
+
+    constructor(service_url, header={{}}, error_handle_function=(error) => {{console.log(error)}}, interceptor_function=(data) => {{console.log(data)}}, function_before_request=() => {{}}, function_after_request=() => {{}}) {{
+        this._special_error_key = "__yingshaoxo's_error__"
+
+        if (service_url.endsWith("/")) {{
+            service_url = service_url.slice(0, service_url.length-1);
+        }}
+        try {{
+            if (location.protocol === 'https:') {{
+                if (service_url.startsWith("http:")) {{
+                    service_url = service_url.replace("http:", "https:")
+                }}
+            }} else if (location.protocol === 'http:') {{
+                if (service_url.startsWith("https:")) {{
+                    service_url = service_url.replace("https:", "http:")
+                }}
+            }}
+        }} catch (e) {{
+        }}
+        this._service_url = service_url
+
+        if (header != null) {{
+            this._header = header
+        }}
+
+        if (error_handle_function) {{
+            this._error_handle_function = error_handle_function
+        }}
+
+        if (interceptor_function) {{
+            this._interceptor_function = interceptor_function
+        }}
+
+        if (function_before_request) {{
+            this._function_before_request = function_before_request
+        }}
+
+        if (function_after_request) {{
+            this._function_after_request = function_after_request
+        }}
+    }}
+
+    _get_reponse_or_error_by_url_path_and_input(sub_url, input_dict, handle_response_function) {{
+        var the_url = `${{this._service_url}}/{identity_name}/${{sub_url}}/`
+        var use_xml_http = false
+        if (typeof fetch !== 'undefined') {{
+            use_xml_http = false
+        }} else {{
+            // use less xml_request, it will not give you right error message
+            use_xml_http = true
+        }}
+
+        var input_json_data = JSON.stringify(input_dict)
+
+        var header = {{'Content-Type': 'application/json; charset=UTF-8'}}
+        for (var key in this._header) {{
+            var value = this._header[key]
+            header[key] = value
+        }}
+
+        var special_error_key = this._special_error_key
+        var before_function = this._function_before_request
+        var after_function = this._function_after_request
+        var interceptor_function = this._interceptor_function
+        var error_handle_function = this._error_handle_function
+
+        try {{
+            if (use_xml_http == false) {{
+                // use fetch
+                before_function()
+                fetch(the_url,
+                {{
+                    method: "POST",
+                    body: input_json_data,
+                    headers: header
+                }})
+                .then((response) => {{
+                    response.json().then(
+                        (data) => {{
+                            interceptor_function(data)
+                            handle_response_function(data)
+                            after_function()
+                        }}
+                    ).
+                    catch((e) => {{
+                        var fake_data = {{[special_error_key]: String(e)}}
+                        after_function()
+                        error_handle_function(fake_data[special_error_key])
+                    }})
+                }})
+                .catch((e) => {{
+                    var fake_data = {{[special_error_key]: String(e)}}
+                    after_function()
+                    error_handle_function(fake_data[special_error_key])
+                }})
+            }} else {{
+                // use XMLHttpRequest
+                before_function()
+                var xhr = new XMLHttpRequest();
+
+                xhr.open('POST', the_url, true);
+                for (var key in header) {{
+                    var value = header[key]
+                    xhr.setRequestHeader(key, value);
+                }}
+
+                xhr.onreadystatechange = function () {{
+                    if (xhr.readyState === XMLHttpRequest.DONE) {{
+                        if (xhr.status === 200) {{
+                            try {{
+                                var data = JSON.parse(xhr.responseText)
+                                interceptor_function(data)
+                                handle_response_function(data)
+                            }}
+                            catch (e) {{
+                                var fake_data = {{[special_error_key]: "Json parse error" + ": " + String(xhr.statusText)}}
+                                error_handle_function(fake_data[special_error_key])
+                            }}
+                        }} else {{
+                            var fake_data = {{[special_error_key]: String(xhr.status)}}
+                            error_handle_function(fake_data[special_error_key])
+                        }}
+                        after_function()
+                    }}
+                }};
+
+                xhr.onerror = function() {{
+                    var fake_data = {{[special_error_key]: String(xhr.status) + ": " + String(xhr.statusText)}}
+                    error_handle_function(fake_data[special_error_key])
+                    after_function()
+                }}
+
+                xhr.send(input_json_data);
+            }}
+        }} catch (e) {{
+            var fake_data = {{[special_error_key]: String(e)}}
+            error_handle_function(fake_data[special_error_key])
+            after_function()
+        }}
+    }}
+
+{client_function_list_text}
+}}
+
+export default Client_{identity_name}
+        """.strip()
+
+        return template_text
+
     def _convert_yrpc_code_into_golang_objects_code(self, identity_name: str, source_code: str) -> str:
         arguments_dict, _ = self.get_information_from_yrpc_protocol_code(source_code=source_code)
 
@@ -2270,6 +2782,7 @@ package {identity_name}
             "python": ".py",
             "dart": ".dart",
             "typescript": ".ts",
+            "javascript": ".js",
             "golang": ".go"
         }
 
@@ -2292,7 +2805,7 @@ package {identity_name}
 
             objects_code = ""
             rpc_code = ""
-            if which_language in ["python", "dart", "typescript"]:
+            if which_language in ["python", "dart", "typescript", "javascript"]:
                 target_objects_file_path = disk.join_paths(output_folder, filename + "_objects" + language_to_file_suffix_dict[which_language])
                 target_rpc_file_path = disk.join_paths(output_folder, filename + "_rpc" + language_to_file_suffix_dict[which_language])
 
@@ -2321,6 +2834,9 @@ package {identity_name}
                 elif which_language == "typescript":
                     objects_code = self._convert_yrpc_code_into_typescript_objects_code(source_code=source_code)
                     rpc_code = self._convert_yrpc_code_into_typescript_rpc_code(identity_name=identity_name, source_code=source_code)
+                elif which_language == "javascript":
+                    objects_code = self._convert_yrpc_code_into_javascript_objects_code(source_code=source_code)
+                    rpc_code = self._convert_yrpc_code_into_javascript_rpc_code(identity_name=identity_name, source_code=source_code)
                 io_.write(file_path=target_objects_file_path, content=objects_code)
                 io_.write(file_path=target_rpc_file_path, content=rpc_code)
             elif which_language in ["golang"]:

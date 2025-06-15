@@ -27,6 +27,8 @@ curl -sSL https://raw.githubusercontent.com/yingshaoxo/yingshaoxo_code_pilot/mai
 ```
 
 ## Usage
+Just open a file `vim hi.txt`, in the line you want to search, hit `Alt + f`.
+
 Just open a file `vim hi.txt`, in the line you want to complete, hit `Alt + /`.
 
 > By the way, vim has a built-in auto_complete command: `ctrl+p`

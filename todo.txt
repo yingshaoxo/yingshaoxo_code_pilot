@@ -1,0 +1,54 @@
+# This is the python side
+
+The lib.py have used vim module, now we need to remove that usage, we are going to change 'lib.py' to a command line tool, where it receives ['current_code_folder', 'input_code(which are vim previous_lines+current_line)', 'how_long_the_following_text_you_want_to_get']
+
+We will completely ignore and remove the codet5p-220m-py usage because it is useless.
+
+Ofcause we have to set a timmer for get_data_source_text() function, if we can't run that function within 0.5 second, we will use recursive=False to avoid deep text loading.
+
+
+# This is the vim side
+
+Another is for yingshaoxo.vim, we will use python3 or python or python2, we have to do a pre_check to determine which python command to use
+
+Then we have to get the current folder where user started the vim. Then whenever user hit the <C-S-P> or <S-Tab>, we will call our python command line, which is "vim_plugin_folder+lib.py current_code_folder input_code how_long_the_following_text_you_want_to_get"
+
+By doing so, we just bypassed a lot of resctrictions in vim and python.
+
+
+# More 
+
+Instead of let the lib.py only handle "complete_the_rest" function, we have to add a new function which does a string search:
+
+```
+def find_string(folder_path, search_string, start_from=0):
+    start_from = int(start_from)
+    files = disk.get_files(folder=folder_path, recursive=True, use_gitignore_file=True)
+    counting = 0
+    for file in files:
+        try:
+            with open(file, "r") as f:
+                text = f.read()
+            lines = text.split("\n")
+            found_index = None
+            for index, line in enumerate(lines):
+                if search_string in line and line.strip()[0] not in ["#", '"', "'", "/"]:
+                    found_index = index
+                    break
+            if found_index != None:
+                if counting >= start_from:
+                    next_text = "\n".join(lines[found_index:found_index + 20])
+                    return next_text
+                counting += 1
+        except Exception as e:
+            pass
+    return ""
+```
+
+When we hit alt+f, we have to search all txt code files, do a compare to see if current line of text is inside those files or not, we find all 'current line exists' lines, and we show it as a temporary popup window in vim, so that later we could use arrow up or down to do a choice and hit enter to do the complete
+
+The compare method is 'split current line to segments that do not have punctuation, then for each target line, we check if all those segments is inside of that line, if so, it should show in popup menu'
+
+All in all, the 'choice and complete' ui effects is just similar to 'YouCompleteMe' or normal vim ctrl+p complete.
+
+It is like in other complete tool, you can do the up and down choice to see the complete text, but you have to hit the enter to finally make it real.

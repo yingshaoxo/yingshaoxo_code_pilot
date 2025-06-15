@@ -34,7 +34,7 @@ class Common:
         if not os.path.exists(self._auto_everything_config_folder):
             os.mkdir(self._auto_everything_config_folder)
 
-    def _create_a_sub_config_folder_for_auto_everything(self, module_name: str):
+    def _create_a_sub_config_folder_for_auto_everything(self, module_name):
         sub_folder_path = os.path.join(self._auto_everything_config_folder, module_name)
         if not os.path.exists(sub_folder_path):
             os.mkdir(sub_folder_path)
@@ -344,6 +344,7 @@ class Disk:
         return os.path.join(*path) # type: ignore
 
     def join_paths(self, *path: str) -> str:
+        # in alpine3.15, path like '/home/./hhh.txt' is not a right path.
         return self.concatenate_paths(*path)
 
     def join_relative_paths(self, path1: str, path2: str) -> str:
@@ -389,22 +390,26 @@ class Disk:
         if file_path.startswith("./"):
             file_path = file_path[2:]
 
-        # if file_path.endswith(".ipynb_checkpoints"):
-        #     pass
-
         match = False
         for pattern in ignore_pattern_list:
-            if fnmatch(file_path.removeprefix(start_folder), pattern.removeprefix("./")):
+            path_a = file_path.removeprefix(start_folder)
+            patten_b = pattern.removeprefix("./")
+            if fnmatch(path_a, patten_b):
+                #print(path_a + " | " + patten_b)
                 match = True
                 break
+
         return match
 
     def get_gitignore_folders_and_files(self, folder: str, also_return_dot_git_folder: bool = False) -> list[str]:
+        """
+        return a list of string path, which should get ignored
+        """
         files = self.get_files(folder=folder)
 
         if "version" not in t.run_command("git --version").lower():
-            print("error: git needs to get installed for using 'use_gitignore_file' paramater.")
-            return files
+            #raise Exception("error: git needs to get installed for using 'use_gitignore_file' paramater.")
+            return self.get_gitignore_folders_and_files_by_using_yingshaoxo_method(folder, also_return_dot_git_folder=also_return_dot_git_folder)
 
         ignored_files = []
         git_folder_list = []
@@ -439,6 +444,95 @@ class Disk:
 
         return ignored_files
 
+    def get_gitignore_folders_and_files_by_using_yingshaoxo_method(self, folder: str, also_return_dot_git_folder: bool = False, include_docker_ignore_file: bool = False) -> list[str]:
+        """
+        return a list of path string, which should get ignored
+
+        folder is included
+        """
+        final_path_list = []
+
+        return_list_than_tree = False
+        ignore_symbolic_link = True
+
+        folder = self._expand_user(folder)
+
+        root = _FileInfo(
+            path=folder,
+            is_folder=True,
+            is_file=False,
+            folder=self.get_directory_name(folder),
+            name=self.get_file_name(folder),
+            level=0,
+            children=None
+        )
+
+        def dive(node, git_ignore_pattern_list = []):
+            folder = node.path
+
+            if not os.path.isdir(folder):
+                return
+
+            items = os.listdir(folder)
+            if len(items) == 0:
+                return
+
+            ignore_pattern_list = git_ignore_pattern_list
+            if ".gitignore" in items:
+                temp_git_ignore_text = self.read_bytes_from_file(os.path.join(folder, ".gitignore")).decode("utf-8", errors="ignore")
+                temp_git_ignore_pattern_list = self._parse_gitignore_text_to_list(gitignore_text=temp_git_ignore_text)
+                ignore_pattern_list += temp_git_ignore_pattern_list
+            if include_docker_ignore_file == True:
+                if ".dockerignore" in items:
+                    temp_git_ignore_text = self.read_bytes_from_file(os.path.join(folder, ".dockerignore")).decode("utf-8", errors="ignore")
+                    temp_git_ignore_pattern_list = self._parse_gitignore_text_to_list(gitignore_text=temp_git_ignore_text)
+                    ignore_pattern_list += temp_git_ignore_pattern_list
+            ignore_pattern_list = list(set(ignore_pattern_list))
+            #print(ignore_pattern_list)
+
+            files_and_folders: list[_FileInfo] = []
+            for filename in items:
+                file_path = os.path.join(folder, filename)
+
+                if self._file_match_the_gitignore_rule_list(
+                    start_folder=node.path,
+                    file_path=file_path,
+                    ignore_pattern_list=ignore_pattern_list,
+                ):
+                    if os.path.isdir(file_path):
+                        final_path_list.append(file_path+"/")
+                    else:
+                        final_path_list.append(file_path)
+                    continue
+
+                if ignore_symbolic_link == True:
+                    if os.path.islink(file_path):
+                        continue
+
+                new_node = _FileInfo(
+                    path=file_path,
+                    is_folder=os.path.isdir(file_path),
+                    is_file=os.path.isfile(file_path),
+                    folder=self.get_directory_name(file_path),
+                    name=self.get_file_name(file_path),
+                    level=node.level + 1,
+                    children=None
+                )
+                dive(node=new_node, git_ignore_pattern_list=ignore_pattern_list.copy())
+                #files_and_folders.append(
+                #    new_node
+                #)
+
+            #files_and_folders.sort(key=lambda node_: self._super_sort_key_function(node_.name))
+            #node.children = files_and_folders
+
+        if also_return_dot_git_folder == True:
+            dive(root, [".git"])
+        else:
+            dive(root, [])
+
+        return final_path_list
+
     def get_files(
         self,
         folder: str,
@@ -448,7 +542,7 @@ class Disk:
         use_gitignore_file: bool = False
     ) -> List[str]:
         """
-        Get files recursively under a folder.
+        Get files as string_path_list recursively under a folder.
 
         Parameters
         ----------
@@ -526,6 +620,38 @@ class Disk:
             files = result_files
 
         return files
+
+    def get_folders(
+        self,
+        folder,
+        recursive = True,
+    ):
+        """
+        Get folder string list recursively under a folder.
+
+        Parameters
+        ----------
+        folder: string
+        recursive: bool
+        """
+        folder = self._expand_user(folder)
+        assert os.path.exists(folder), f"{folder} is not exist!"
+
+        if recursive == True:
+            folder_list = []
+            for root, dirnames, filenames in os.walk(folder):
+                for dirname in dirnames:
+                    a_folder = self.join_paths(root, dirname)
+                    if not os.path.islink(a_folder):
+                        folder_list.append(a_folder)
+        else:
+            folder_list = []
+            for dirname in os.listdir(folder):
+                a_folder = self.join_paths(folder, dirname)
+                if os.path.isdir(a_folder):
+                    if not os.path.islink(a_folder):
+                        folder_list.append(a_folder)
+        return folder_list
 
     def get_folder_and_files(
         self,
@@ -795,7 +921,6 @@ class Disk:
                     temp_git_ignore_text = self.read_bytes_from_file(os.path.join(folder, ".dockerignore")).decode("utf-8", errors="ignore")
                     temp_git_ignore_pattern_list = self._parse_gitignore_text_to_list(gitignore_text=temp_git_ignore_text)
                     ignore_pattern_list += temp_git_ignore_pattern_list
-            ignore_pattern_list.append(".git")
             ignore_pattern_list = list(set(ignore_pattern_list))
             #print(ignore_pattern_list)
 
@@ -824,7 +949,7 @@ class Disk:
                     children=None
                 )
                 if recursive == True:
-                    dive(node=new_node, git_ignore_pattern_list=ignore_pattern_list)
+                    dive(node=new_node, git_ignore_pattern_list=ignore_pattern_list.copy())
                 files_and_folders.append(
                     new_node
                 )
@@ -832,7 +957,7 @@ class Disk:
             files_and_folders.sort(key=lambda node_: self._super_sort_key_function(node_.name))
             node.children = files_and_folders
 
-        dive(root, [])
+        dive(root, [".git"])
 
         if return_list_than_tree == False:
             return root
@@ -933,6 +1058,7 @@ class Disk:
     def get_hash_of_a_file_by_using_yingshaoxo_method(self, path: str, bytes_data: bytes | None = None, level: int = 1, length: int = 8, seperator: str = "_", with_size: bool = False) -> str:
         """
         get hash string based on the bytes of a file by using yingshaoxo method.
+        this method works because a byte is a integer between (0, 255)
 
         Parameters
         ----------
@@ -1014,6 +1140,52 @@ class Disk:
     def get_fuzz_hash_by_using_yingshaoxo_method(self, bytes_data: bytes, level: int = 256) -> str:
         hash_code = self.get_hash_of_a_file_by_using_yingshaoxo_method("", bytes_data=bytes_data, level=level, length=1, seperator="", with_size=True)
         return hash_code
+
+    def get_simple_hash_of_a_file_by_using_yingshaoxo_method(self, path, bytes_data = None, level = 256, seperator = "_", with_size = False):
+        """
+        get simple hash string based on the bytes of a file by using yingshaoxo method.
+        this method works because a byte is a integer between (0, 255)
+        but you should not use it on integraty check, it is not a secure hash
+
+        The core about this function is that it do a step check about a file, it collect a byte per 'all_length//level' bytes, all collected bytes togather becomes the hash code.
+
+        Parameters
+        ----------
+        path: string
+            the file path
+        bytes_data: bytes
+            the file bytes
+        level: int
+            how accurate it should be, only work for bytes_data. The higher the better.
+        """
+        real_level = level
+        seperator_length = len(seperator)
+
+        if bytes_data == None:
+            file_ = open(path, "rb")
+            bytes_data = file_.read()
+            file_.close()
+
+        all_size = len(bytes_data)
+        if all_size == 0:
+            return "_".join(['0' for one in list(range(real_level))])
+        part_size = 0
+        while part_size == 0:
+            part_size = int(all_size / level)
+            if part_size == 0:
+                level = int(level / 2)
+
+        result_list = []
+        for level_i in range(level):
+            the_index = level_i * part_size
+            file_hash = str(int(bytes_data[the_index]))
+            file_hash = ("0" * (3-len(file_hash))) + file_hash
+            result_list.append(file_hash)
+
+        result = seperator.join(result_list)
+        if with_size == True:
+            result = str(all_size) + seperator + result
+        return result
 
     def get_hash_of_a_file_by_using_sha1(self, path: str) -> str:
         """
@@ -1180,6 +1352,21 @@ class Disk:
             return int("{:.0f}".format(total_size / float(1 << 20)))
         else:
             return total_size
+
+    def compress_a_file(self, input_file_path, output_file_path):
+        if not t.software_exists("tar"):
+            raise Exception(f"Compress requires your linux has 'tar'")
+        if not output_file_path.endswith(".tar.gz"):
+            raise Exception(f"The output_file_path should ends with '.tar.gz', the full name should be 'xxx.tar.gz'")
+        t.run(f"tar -czvf '{output_file_path}' '{input_file_path}'")
+
+    def uncompress_a_file(self, input_file_path, output_folder):
+        if not t.software_exists("tar"):
+            raise Exception(f"Compress requires your linux has 'tar'")
+        if not input_file_path.endswith(".tar.gz"):
+            raise Exception(f"The input_file_path should ends with '.tar.gz', the full name should be 'xxx.tar.gz'")
+        t.run(f"mkdir -p '{output_folder}'")
+        t.run(f"tar -xzvf '{input_file_path}' -C '{output_folder}'")
 
     def compress(self, input_folder_path: str, output_zip_path: str, file_format: str = "zip") -> str:
         """
@@ -1348,6 +1535,19 @@ class Disk:
     def bytes_to_hex(self, bytes_data: bytes):
         return bytes_data.hex()
 
+    def int_byte_to_binary_string(self, a_number):
+        """
+        For a byte or ascii number in range of [0,255], the binary_string should have 8 chracters, similar to 01100100
+        """
+        return format(a_number, "b")
+
+    def string_binary_to_int_byte(self, binary_string):
+        """
+        For a byte or ascii number in range of [0,255], the binary_string should have 8 chracters, similar to 01100100
+        Which means a byte has 8 characters. The binary_string length you gave to me should be 8.
+        """
+        return int(binary_string, 2)
+
     def remove_a_file(self, file_path: str):
         file_path = self._expand_user(file_path)
         if self.exists(file_path):
@@ -1361,6 +1561,8 @@ class Disk:
         target_file_path = self._expand_user(target_file_path)
         if source_file_path == target_file_path:
             return
+        if not self.exists(source_file_path):
+            return
         if self.exists(target_file_path):
             os.remove(target_file_path)
         os.rename(source_file_path, target_file_path)
@@ -1369,6 +1571,8 @@ class Disk:
         source_folder_path = self._expand_user(source_folder_path)
         target_folder_path = self._expand_user(target_folder_path)
         if source_folder_path == target_folder_path:
+            return
+        if not self.exists(source_folder_path):
             return
         if self.exists(target_folder_path):
             self.delete_a_folder(target_folder_path)
@@ -1505,6 +1709,14 @@ class Disk:
                         disk.move_a_file(source_file_path=file, target_file_path=new_file)
 
     def compress_bytes_by_using_yingshaoxo_method(self, bytes_data, window_length=1024) -> bytes:
+        """
+        A joke: A extreme compression method would be magnet torrent, a x GB file can be 'uncompressed' by a magnet hash link string.
+
+        The real part is: if you use 'a' to represent 'ab', 'b' to represent 'ac', 'c' to represent 'ad', and so on, in the end, if you have a [ab,ac,ad] dict, you can always compress a file to its half size, but the price is you have to save that dict to everywhlere you want to uncompress a file.
+        It is like, you can write light python code, but to execute it, the price is you have to spend big storage to save python interpreter, a binary file.
+
+        Some compression software like rar, zip, 7z, they work in the same way, they rewrite the old file data, they make you can't get the original file unless you download their software.
+        """
         text = self.bytes_to_base64(bytes_data)
 
         text_length = len(text)
@@ -1582,7 +1794,7 @@ class Store:
     A key-value store.
     """
 
-    def __init__(self, store_name: str, save_to_folder: str | None = None):
+    def __init__(self, store_name, save_to_folder = None, use_sql = True):
         self._common = Common()
 
         if save_to_folder is None or not os.path.exists(save_to_folder):
@@ -1593,7 +1805,17 @@ class Store:
             self._store_folder = save_to_folder
 
         self._store_name = store_name.strip()
-        self.__initialize_SQL()
+
+        self.use_sql = use_sql
+        if self.use_sql == True:
+            try:
+                self.__initialize_SQL()
+            except Exception as e:
+                print(e)
+                self.use_sql = False
+                self.__initialize_a_json()
+        else:
+            self.__initialize_a_json()
 
     def __initialize_SQL(self):
         import sqlite3 as sqlite3
@@ -1601,8 +1823,8 @@ class Store:
         self._SQL_DATA_FILE = os.path.join(self._store_folder, f"{self._store_name}.db")
         self._sql_conn = sqlite3.connect(self._SQL_DATA_FILE, check_same_thread=False)
 
-        def regular_expression(expr: str, item: Any):
-            reg = re.compile(expr, flags=re.DOTALL)
+        def regular_expression(expression_string, item):
+            reg = re.compile(expression_string, flags=re.DOTALL)
             return reg.search(item) is not None
 
         self._sql_conn.create_function(
@@ -1615,11 +1837,16 @@ class Store:
                     (key TEXT, value TEXT)"""
         )
 
-    def __pre_process_key(self, key: Any):
+    def __initialize_a_json(self):
+        self._JSON_DATA_FILE = os.path.join(self._store_folder, f"{self._store_name}.json")
+        with open(self._JSON_DATA_FILE, "w") as f:
+            f.write(json.dumps({}))
+
+    def __pre_process_key(self, key):
         key = str(key)
         return key
 
-    def __pre_process_value(self, value: Any):
+    def __pre_process_value(self, value):
         if not isinstance(value, str):
             try:
                 value = json.dumps(value)
@@ -1630,25 +1857,48 @@ class Store:
                 )
         return value
 
-    def __active_json_value(self, value: Any):
+    def __active_json_value(self, value):
         try:
             value = json.loads(value)
         except Exception as e:
             value = value
         return value
 
+    def _get_json_dict(self):
+        try:
+            with open(self._JSON_DATA_FILE, "r") as f:
+                raw_text = f.read()
+        except Exception as e:
+            file = open(self._JSON_DATA_FILE, "r")
+            raw_text = file.read()
+            file.close()
+        return json.loads(raw_text)
+
+    def _save_json_dict(self, new_dict):
+        try:
+            with open(self._JSON_DATA_FILE, "w") as f:
+                f.write(json.dumps(new_dict, indent=4, ensure_ascii=False))
+        except Exception as e:
+            file = open(self._JSON_DATA_FILE, "w")
+            file.write(json.dumps(new_dict))
+            file.close()
+
     def get_items(self):
         """
         get all key and value tuple in the store
         """
-        rows:list[Any] = []
-        for row in self._sql_cursor.execute(
-            f"SELECT * FROM {self._store_name} ORDER BY key"
-        ):
-            rows.append((row[0], self.__active_json_value(row[1])))
-        return rows
+        if self.use_sql == True:
+            rows = []
+            for row in self._sql_cursor.execute(
+                f"SELECT * FROM {self._store_name} ORDER BY key"
+            ):
+                rows.append((row[0], self.__active_json_value(row[1])))
+            return rows
+        else:
+            a_dict = self._get_json_dict()
+            return [[item[0], self.__active_json_value(item[1])] for item in a_dict.items()]
 
-    def has_key(self, key: str) -> bool:
+    def has_key(self, key):
         """
         check if a key exist in the store
 
@@ -1658,15 +1908,22 @@ class Store:
         """
         key = self.__pre_process_key(key)
 
-        results = self._sql_cursor.execute(
-            f'SELECT EXISTS(SELECT 1 FROM {self._store_name} WHERE key="{key}" LIMIT 1)'
-        )
-        if self._sql_cursor.fetchone()[0] > 0:
-            return True
+        if self.use_sql == True:
+            results = self._sql_cursor.execute(
+                f'SELECT EXISTS(SELECT 1 FROM {self._store_name} WHERE key="{key}" LIMIT 1)'
+            )
+            if self._sql_cursor.fetchone()[0] > 0:
+                return True
+            else:
+                return False
         else:
-            return False
+            a_dict = self._get_json_dict()
+            if key in a_dict:
+                return True
+            else:
+                return False
 
-    def get(self, key: str, default_value: Any = None):
+    def get(self, key, default_value = None):
         """
         get a value by using a key
 
@@ -1677,16 +1934,23 @@ class Store:
         """
         key = self.__pre_process_key(key)
 
-        self._sql_cursor.execute(
-            f"SELECT * FROM {self._store_name} WHERE key=?", (key,)
-        )
-        result = self._sql_cursor.fetchone()
-        if result:
-            return self.__active_json_value(result[1])
+        if self.use_sql == True:
+            self._sql_cursor.execute(
+                f"SELECT * FROM {self._store_name} WHERE key=?", (key,)
+            )
+            result = self._sql_cursor.fetchone()
+            if result:
+                return self.__active_json_value(result[1])
+            else:
+                return default_value
         else:
-            return default_value
+            a_dict = self._get_json_dict()
+            if key in a_dict:
+                return self.__active_json_value(a_dict[key])
+            else:
+                return default_value
 
-    def set(self, key: str, value: Any):
+    def set(self, key, value):
         """
         set a value by using a key
 
@@ -1698,16 +1962,21 @@ class Store:
         key = self.__pre_process_key(key)
         value = self.__pre_process_value(value)
 
-        if self.has_key(key):
-            self._sql_cursor.execute(
-                f"UPDATE {self._store_name} SET value=? WHERE key=?", (value, key)
-            )
+        if self.use_sql == True:
+            if self.has_key(key):
+                self._sql_cursor.execute(
+                    f"UPDATE {self._store_name} SET value=? WHERE key=?", (value, key)
+                )
+            else:
+                command = f""" INSERT INTO {self._store_name} VALUES(?,?) """
+                self._sql_cursor.execute(command, (key, value))
+            self._sql_conn.commit()
         else:
-            command = f""" INSERT INTO {self._store_name} VALUES(?,?) """
-            self._sql_cursor.execute(command, (key, value))
-        self._sql_conn.commit()
+            a_dict = self._get_json_dict()
+            a_dict.update({key: value})
+            self._save_json_dict(a_dict)
 
-    def delete(self, key: str):
+    def delete(self, key):
         """
         delete a value by using a key
 
@@ -1717,19 +1986,27 @@ class Store:
         """
         key = self.__pre_process_key(key)
 
-        if self.has_key(key):
-            self._sql_cursor.execute(
-                f"DELETE FROM {self._store_name} WHERE key=?", (key,)
-            )
+        if self.use_sql == True:
+            if self.has_key(key):
+                self._sql_cursor.execute(
+                    f"DELETE FROM {self._store_name} WHERE key=?", (key,)
+                )
 
-        self._sql_conn.commit()
+            self._sql_conn.commit()
+        else:
+            a_dict = self._get_json_dict()
+            del a_dict[key]
+            self._save_json_dict(a_dict)
 
     def reset(self):
         """
         empty the store
         """
-        self._sql_cursor.execute(f"DELETE FROM {self._store_name}")
-        self._sql_conn.commit()
+        if self.use_sql == True:
+            self._sql_cursor.execute(f"DELETE FROM {self._store_name}")
+            self._sql_conn.commit()
+        else:
+            self._save_json_dict({})
 
 
 class Dart_File_Hard_Encoder_And_Decoder:
