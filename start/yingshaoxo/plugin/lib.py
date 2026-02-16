@@ -40,7 +40,7 @@ def complete_the_rest(current_working_directory, input_text, max_length):
     message_queue = multiprocessing.Queue()
     a_process = multiprocessing.Process(target=get_data_source_text, args=(message_queue, current_working_directory, type_list))
     a_process.start()
-    
+
     start_time = time.time()
     while True:
         if not message_queue.empty():
@@ -54,7 +54,7 @@ def complete_the_rest(current_working_directory, input_text, max_length):
                 data_source_text += io_.read(file) + "\n\n\n\n"
             break
         time.sleep(0.05)
-    
+
     if a_process.is_alive():
         a_process.kill()
 
@@ -79,18 +79,18 @@ def find_string(folder_path, search_string, start_from=0):
     files = disk.get_files(folder=folder_path, recursive=True, use_gitignore_file=True)
     counting = 0
     results = []
-    
+
     def tokenize(text):
         # Split on punctuation and whitespace, remove empty strings
         # For Chinese text, just return the full string as one token
         if any('\u4e00' <= char <= '\u9fff' for char in text):
             return [text.strip()]
         return [t for t in re.split(r'[\s\W]+', text) if t]
-    
+
     search_tokens = tokenize(search_string)
     if not search_tokens:
         return []
-        
+
     for file in files:
         try:
             with open(file, "r", encoding='utf-8') as f:
@@ -134,27 +134,78 @@ def find_string(folder_path, search_string, start_from=0):
                             })
             except Exception as e:
                 pass
-    
+
     if start_from < len(results):
         return results[start_from:]
     return []
+
+import http.client
+import json
+def ask_llama(input_text):
+    conn = http.client.HTTPConnection("localhost", 5001)
+    headers = {"Content-Type": "application/json"}
+    payload = json.dumps({
+        "model": 'llama',
+        #"stop_sequence": ["User:", "\nUser ", "\nYou: "],
+        #"prompt": "User: " + input_text + "\nYou: ",
+        "stop_sequence": ["{{[INPUT]}}", "{{[OUTPUT]}}"],
+        "prompt": "{{[INPUT]}}" + input_text + "\n" + "{{[OUTPUT]}}",
+        "max_context_length": 2048,
+        "max_length": 1024,
+        "stream": False,
+        "cache_prompt": True,
+    })
+
+    conn.request("POST", "/v1/api/generate", body=payload, headers=headers)
+    response = conn.getresponse()
+
+    if response.status == 200:
+        data = response.read()
+        data = json.loads(data.decode())
+        response = data.get("response")
+        if response:
+            return response.strip()
+        else:
+            return "error: no response"
+    else:
+        return "error: HTTP {} request failed".format(response.status)
+
+def complete_the_rest_by_ask_llama(input_text):
+    text = """
+Act as an expert software developer.
+Take requests for changes to the supplied code.
+Please complete the following code, no extra import than core library, no f-format method, no type_annotation, always perfer hard coding string based operations, only complete and print the bottom one function code, do not explain, we just need pure code as reply:
+    """.strip()
+    input_text = "def " + input_text.split("\ndef ")[-1]
+    text += "\n" + input_text.strip()
+    result = ask_llama(text)
+    if "error: " in result:
+        return ""
+    else:
+        result = result.replace("```python", "```")
+        if "```" in result:
+            result = "".join(result.split("```")[1:]).split("```")[0]
+        return result
 
 def main():
     parser = argparse.ArgumentParser(description='Code completion and search tool')
     parser.add_argument('current_code_folder', help='The folder containing the code')
     parser.add_argument('input_code', help='The input code (previous lines + current line)')
     parser.add_argument('max_length', type=int, help='How long the following text you want to get')
-    parser.add_argument('--mode', choices=['complete', 'search'], default='complete', help='Operation mode')
+    parser.add_argument('--mode', choices=['complete', 'search', 'ask_llama'], default='complete', help='Operation mode')
     parser.add_argument('--start-from', type=int, default=0, help='Start index for search results')
-    
+
     args = parser.parse_args()
-    
+
     try:
         if args.mode == 'search':
             results = find_string(args.current_code_folder, args.input_code, args.start_from)
             # Output results in JSON format for easy parsing in Vim
             import json
             print(json.dumps(results))
+        elif args.mode == 'ask_llama':
+            result = complete_the_rest_by_ask_llama(args.input_code)
+            print(result)
         else:
             result = complete_the_rest(args.current_code_folder, args.input_code, args.max_length)
             print(result)
@@ -164,4 +215,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

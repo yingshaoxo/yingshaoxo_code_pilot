@@ -108,6 +108,64 @@ inoremap <M-/> <C-o>:call Complete_the_rest()<CR>
 nnoremap <Esc>/ :call Complete_the_rest()<CR>
 inoremap <Esc>/ <C-o>:call Complete_the_rest()<CR>
 
+
+function! s:new_GetCurrentContent()
+    let l:line = line('.')
+    let l:col = col('.')
+    let l:lines = getline(1, l:line)
+    let l:current_line = getline(l:line)[:l:col - 1]
+    return join(l:lines + [l:current_line], "\n")
+endfunction
+function! Complete_the_rest_by_ask_llama()
+    " Show status message
+        echo "llama completion in progress..."
+    redraw
+    
+    let l:cwd = getcwd()
+    let l:input_text = shellescape(s:new_GetCurrentContent())
+    let l:cmd = printf('%s "%s" %s %s 512 --mode ask_llama', s:python_cmd, s:lib_path, shellescape(l:cwd), l:input_text)
+    
+    let l:result = system(l:cmd)
+    if v:shell_error == 0
+        " Show success message
+        echohl MoreMsg
+        echo "=== Completion successful ==="
+        echohl None
+        
+        " Get current line and cursor position
+        let l:current_line = getline('.')
+        let l:col = col('.')
+        let l:line_num = line('.')
+        
+        " Split result into lines
+        let l:completion_lines = split(l:result, '\n')
+        
+        if !empty(l:completion_lines)
+            " Handle first line - append to current line
+            let l:first_line = l:completion_lines[0]
+            call setline('.', l:current_line[:l:col+2] . l:first_line)
+            
+            " Add remaining lines below if there are any
+            if len(l:completion_lines) > 1
+                call append(l:line_num, l:completion_lines[1:])
+            endif
+        endif
+    else
+        " Show error message
+        echohl ErrorMsg
+        echo "Completion failed: " . l:result
+        echohl None
+    endif
+endfunction
+
+nnoremap <A-c> :call Complete_the_rest_by_ask_llama()<CR>
+inoremap <A-c> <C-o>:call Complete_the_rest_by_ask_llama()<CR>
+nnoremap <M-c> :call Complete_the_rest_by_ask_llama()<CR>
+inoremap <M-c> <C-o>:call Complete_the_rest_by_ask_llama()<CR>
+nnoremap <Esc>c :call Complete_the_rest_by_ask_llama()<CR>
+inoremap <Esc>c <C-o>:call Complete_the_rest_by_ask_llama()<CR>
+
+
 " Check if we have popup support
 let s:has_popup = exists('*popup_create') && exists('*win_execute')
 let s:is_neovim = has('nvim')
